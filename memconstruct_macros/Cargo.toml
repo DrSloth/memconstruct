@@ -2,6 +2,11 @@
 name = "memconstruct_macros"
 version = "0.1.0"
 edition = "2021"
+readme = "../README.md"
+repository = "https://github.com/DrSloth/memconstruct"
+license = "MIT"
+description = "Create values directly anywhere in memory. Create values directly on the heap."
+keywords = ["memory", "optimisation", "proc-macro"]
 
 [lib]
 proc-macro = true
