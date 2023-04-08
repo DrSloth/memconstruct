@@ -1,0 +1,2 @@
+[workspace]
+members = ["memconstruct", "memconstruct_macros"]
