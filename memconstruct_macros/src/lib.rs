@@ -1,6 +1,6 @@
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
-use syn::{Data, DataStruct, DeriveInput, Fields, Generics, Ident, Type, Visibility};
+use syn::{Data, DataStruct, DeriveInput, Fields, Generics, Ident, Type, Visibility, Member, Index};
 
 #[proc_macro_derive(MemConstruct)]
 pub fn memconstruct_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -52,7 +52,7 @@ fn memconstruct_derive_struct_impl(
             .iter()
             .filter_map(|field| {
                 Some(MemConstructField {
-                    name: field.ident.clone()?,
+                    name: Member::Named(field.ident.clone()?),
                     field_type: field.ty.clone(),
                 })
             })
@@ -63,18 +63,18 @@ fn memconstruct_derive_struct_impl(
             .iter()
             .enumerate()
             .map(|(i, field)| MemConstructField {
-                name: quote::format_ident!("field{}", i),
+                name: Member::Unnamed(Index::from(i)),
                 field_type: field.ty.clone(),
             })
             .collect::<Vec<_>>(),
         Fields::Unit => return impl_zst(name, constructor_name, generics, quote! { Self }),
     };
 
-    impl_struct(name, constructor_name, generics, &fields, data_struct, vis)
+    impl_struct(name, constructor_name, generics, &fields, vis)
 }
 
 struct MemConstructField {
-    name: Ident,
+    name: Member,
     field_type: Type,
 }
 
@@ -83,7 +83,6 @@ fn impl_struct(
     constructor_name: Ident,
     generics: Generics,
     fields: &[MemConstructField],
-    data_struct: DataStruct,
     vis: Visibility,
 ) -> TokenStream2 {
     if fields.is_empty() {
@@ -122,6 +121,7 @@ fn impl_struct(
 
         // TODO make heapconstruction composable
         let field_name = &field.name;
+        let param_name = quote::format_ident!("val_{}", field_name);
         let field_type = &field.field_type;
         let before_tokens = impl_token_generics
             .iter()
@@ -133,19 +133,19 @@ fn impl_struct(
         let construction_token = construction_tokens
             .get(i)
             .unwrap_or_else(|| unreachable!("There should be a construction token for each field"));
-        let setter_name = quote::format_ident!("set_{}", field_name);
+        let setter_name = quote::format_ident!("set_{}", field.name);
         let with_pointer_fn_name = quote::format_ident!("set_{}_with_pointer", field_name);
         let impl_quote = quote! {
             impl < #(#impl_token_generics,)* > #constructor_name
                 < #(#before_tokens,)* #construction_token,  #(#after_tokens,)* >
             {
                 /// Set the value of the field
-                pub fn #setter_name(self, #field_name: #field_type)
+                pub fn #setter_name(self, #param_name: #field_type)
                  -> #constructor_name<#(#before_tokens,)* (), #(#after_tokens,)*>
                 {
                  // SAFETY: we write to the field via addr_of_mut TODO packed types need unaligned
                  unsafe {
-                     ::core::ptr::addr_of_mut!((*self.ptr).#field_name).write(#field_name);
+                     ::core::ptr::addr_of_mut!((*self.ptr).#field_name).write(#param_name);
                  }
                  #constructor_name::<#(#before_tokens,)* (), #(#after_tokens,)*> {
                      ptr: self.ptr,
@@ -193,7 +193,7 @@ fn impl_struct(
             //TODO make this work for generic structs
             type Target = #name;
 
-            fn new(ptr: *mut #name) -> Self {
+            unsafe fn new(ptr: *mut #name) -> Self {
                 Self {
                     ptr,
                     boo_scary: ::core::marker::PhantomData::default(),
@@ -205,7 +205,7 @@ fn impl_struct(
     }
 }
 
-fn memconstruct_token(type_name: &Ident, field_name: &Ident) -> TokenStream2 {
+fn memconstruct_token(type_name: &Ident, field_name: &Member) -> TokenStream2 {
     let ident = quote::format_ident!("MemConstruct{}{}", type_name, field_name);
     quote! { #ident }
 }
@@ -222,8 +222,8 @@ fn impl_zst(
             type Constructor = #constructor_name;
             type ConstructorFinishedToken = Self::Constructor;
 
-            fn new_zst() -> Self where Self: Sized {
-                #zst_constructions
+            fn new_boxed_zst() -> Box<Self> where Self: Sized {
+                Box::new( #zst_constructions )
             }
         }
 
@@ -234,21 +234,9 @@ fn impl_zst(
         {
             type Target = #name #impl_generics ;
 
-            fn new(_ptr: *mut Self::Target) -> Self {
+            unsafe fn new(_ptr: *mut Self::Target) -> Self {
                 Self
             }
         }
     }
 }
-
-// A small wrapper to make &T an IntoIter by cloning the iterator
-// struct RefCloneIter<T>(T);
-
-// impl<T: IntoIterator + Clone> IntoIterator for RefCloneIter<T> {
-//     type Item = <T as IntoIterator>::Item;
-//     type IntoIter = <T as IntoIterator>::IntoIter;
-
-//     fn into_iter(self) -> Self::IntoIter {
-//         self.0.clone
-//     }
-// }

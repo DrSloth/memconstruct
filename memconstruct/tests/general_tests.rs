@@ -29,8 +29,13 @@ struct Borello(i32, f32, [u8; 4]);
 
 #[test]
 fn construct_boxed_tuple_struct() {
-    let borello = memconstruct::construct_box::<Borello, _>(|c| {
-        c.set_field0(42).set_field1(6.9).set_field2([4u8; 4])
-    });
-    println!("{:?}", borello)
+    let borello =
+        memconstruct::construct_box::<Borello, _>(|c| c.set_0(42).set_1(6.9).set_2([4u8; 4]));
+    println!("{:?}", borello);
+}
+
+#[test]
+fn construct_boxed_array() {
+    let arr = memconstruct::construct_box::<[i32; 20], _>(|c| c.memconstruct_all(|c| c.set(42)));
+    println!("{:?}", arr);
 }

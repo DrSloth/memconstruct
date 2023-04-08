@@ -11,7 +11,7 @@ use super::{MemConstruct, MemConstructConstructor};
 /// Safely construct a box that holds a value of `T` that is constructed directly on the heap,
 /// skipping the construction on the stack.
 ///
-/// This constructtions catches panics inside the passes `construct` function and deallocates the
+/// This constructions catches panics inside the passes `construct` function and deallocates the
 /// previously allocated memory, it resumes the unwind after deallocating. If the passed closure
 /// are not [`UnwindSafe`](std::panic::Unwindsafe) or the type T is not [`RefUnwindSafe`] consider
 /// using the [`construct_box_uncaught`] function which will leak the memory on panic.
@@ -80,11 +80,13 @@ pub fn try_construct_box<
 ) -> Result<Box<T>, AllocError> {
     if mem::size_of::<T>() == 0usize {
         let res = panic::catch_unwind(|| {
-            construct(T::Constructor::new(ptr::null_mut()));
+            // SAFETY: Constructors for ZSTs MUST ignore the given pointer here because `alloc`
+            // will fail for allocations of size 0
+            construct(unsafe { T::Constructor::new(ptr::null_mut()) });
         });
 
         return match res {
-            Ok(()) => Ok(Box::new(T::new_zst())),
+            Ok(()) => Ok(T::new_boxed_zst()),
             Err(e) => Err(AllocError::Paniced(e)),
         };
     }
@@ -116,8 +118,10 @@ pub fn try_construct_box_uncaught<
     construct: F,
 ) -> Result<Box<T>, AllocError> {
     if mem::size_of::<T>() == 0usize {
-        construct(T::Constructor::new(ptr::null_mut()));
-        return Ok(Box::new(T::new_zst()));
+        // SAFETY: Constructors for ZSTs MUST ignore the given pointer here because `alloc`
+        // will fail for allocations of size 0
+        construct(unsafe { T::Constructor::new(ptr::null_mut()) });
+        return Ok(T::new_boxed_zst());
     }
 
     let ptr = unsafe { alloc::alloc(Layout::new::<T>()) as *mut T };

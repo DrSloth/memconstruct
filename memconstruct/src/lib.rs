@@ -1,5 +1,8 @@
 pub mod alloc;
 
+mod array;
+mod primitive;
+
 pub use memconstruct_macros::MemConstruct;
 
 pub use alloc::construct_box;
@@ -11,7 +14,7 @@ pub unsafe trait MemConstruct {
     type ConstructorFinishedToken;
 
     #[doc(hidden)]
-    fn new_zst() -> Self
+    fn new_boxed_zst() -> Box<Self>
     where
         Self: Sized,
     {
@@ -34,7 +37,13 @@ pub unsafe trait MemConstruct {
 pub unsafe trait MemConstructConstructor {
     type Target;
 
-    fn new(ptr: *mut Self::Target) -> Self;
+    /// Create a new `MemConstructConstructor`
+    ///
+    /// # Safety
+    ///
+    /// The pointer has to be a valid, non dangling pointer. The pointer must be well
+    /// aligned and non null if not documented otherwise.
+    unsafe fn new(ptr: *mut Self::Target) -> Self;
 }
 
 pub unsafe fn init_ptr<
@@ -56,3 +65,4 @@ pub fn init_maybe_uninit<
 ) {
     unsafe { init_ptr(uninit.as_mut_ptr(), func) }
 }
+

@@ -23,7 +23,7 @@ unsafe impl MemConstructConstructor
 {
     type Target = Example;
 
-    fn new(ptr: *mut Self::Target) -> Self {
+    unsafe fn new(ptr: *mut Self::Target) -> Self {
         Self {
             ptr,
             boo_scary: PhantomData::default(),
