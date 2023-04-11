@@ -1,4 +1,6 @@
+use memconstruct::HeapConstructExt;
+
 fn main() {
-    let b = memconstruct::construct_box::<[i32; 2_200_000], _>(|c| c.memconstruct_all(|c| c.set(42)));
+    let b = Box::<[i32; 2_200_000]>::heapconstruct(|c| c.set_all(|_| 42));
     println!("{:?}", b);
 }

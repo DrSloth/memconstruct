@@ -26,7 +26,7 @@ pub fn memconstruct_derive(input: proc_macro::TokenStream) -> proc_macro::TokenS
         #[doc(hidden)]
         #[allow(non_snake_case)]
         mod #module_name {
-            #![allow(clippy::all, warnings, unused)]
+            #![allow(clippy::all, warnings, unused, non_snake_case, non_camel_case_types)]
             use super:: #item_name ;
             #impl_tokens
         }
@@ -129,7 +129,7 @@ fn impl_struct(
             .take(i)
             .collect::<Vec<_>>();
         let after_tokens = impl_token_generics.iter().skip(i).collect::<Vec<_>>();
-        let impl_token_generics = impl_token_generics.clone();
+        let impl_token_generics = impl_token_generics;
         let construction_token = construction_tokens
             .get(i)
             .unwrap_or_else(|| unreachable!("There should be a construction token for each field"));
@@ -173,8 +173,14 @@ fn impl_struct(
     };
 
     quote! {
-        #(pub struct #construction_tokens ;)*
+        #(
+            #[allow(non_camel_case_types)]
+            #[allow(clippy::all)]
+            pub struct #construction_tokens ;
+        )*
 
+        #[allow(non_camel_case_types)]
+        #[allow(clippy::all)]
         #constructor_visibility struct #constructor_name <#(#impl_token_generics,)*> {
             ptr: *mut #name,
             boo_scary: ::core::marker::PhantomData::<(#(#impl_token_generics,)*)>,
